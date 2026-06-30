@@ -1,5 +1,11 @@
 # Mode Prompt: Voice Script
 
+Version: v0.4.1
+Scope: Spoken script planning for short video, live opening, client talk track, or training.
+Input Slots: work spec, audience, target duration, SourceBrief, speaking style, compliance constraints.
+Output Structure: scenario, timed script, tone notes, pauses, alternatives, checks.
+Forbidden: income promises, school/policy guarantees, private customer data, legacy public identity.
+
 目标：为房产经纪人生成短视频口播、直播开场、客户沟通话术或门店培训脚本。
 
 输出必须包含：

@@ -16,27 +16,62 @@ import {
   type ExecuteRequest,
   type ExecuteResponse,
   type HealthResponse,
+  type MdouBillingEntry,
+  type MdouBillingRequest,
   type PlanRequest,
   type PlanResponse,
 } from "./types.ts";
 
+export const XIAOQI_DEFAULT_HOST = "127.0.0.1" as const;
+export const XIAOQI_DEFAULT_PORT = 8788 as const;
+export const XIAOQI_MAX_BODY_BYTES = 128 * 1024;
+
 export type XiaoqiServerOptions = {
   version?: string;
   state?: XiaoqiRuntimeState;
+  maxBodyBytes?: number;
 };
+
+class HttpError extends Error {
+  readonly statusCode: number;
+  readonly errorCode: string;
+  readonly headers: Record<string, string>;
+
+  constructor(
+    statusCode: number,
+    errorCode: string,
+    message: string,
+    headers: Record<string, string> = {},
+  ) {
+    super(message);
+    this.statusCode = statusCode;
+    this.errorCode = errorCode;
+    this.headers = headers;
+  }
+}
 
 export function createXiaoqiServer(options: XiaoqiServerOptions = {}): Server {
   const state = options.state ?? createXiaoqiRuntimeState();
-  const version = options.version ?? "0.4.0";
+  const version = options.version ?? "0.4.1";
+  const maxBodyBytes = options.maxBodyBytes ?? XIAOQI_MAX_BODY_BYTES;
 
   return createServer(async (request, response) => {
     try {
-      await routeRequest({ request, response, state, version });
+      await routeRequest({ request, response, state, version, maxBodyBytes });
     } catch (error) {
-      writeJson(response, 500, {
-        error: "xiaoqi_internal_error",
-        message: error instanceof Error ? error.message : "Unknown error",
-      });
+      const httpError =
+        error instanceof HttpError
+          ? error
+          : new HttpError(500, "xiaoqi_internal_error", "Xiaoqi runtime failed safely.");
+      writeJson(
+        response,
+        httpError.statusCode,
+        {
+          error: httpError.errorCode,
+          message: httpError.message,
+        },
+        httpError.headers,
+      );
     }
   });
 }
@@ -46,38 +81,61 @@ async function routeRequest(args: {
   response: ServerResponse;
   state: XiaoqiRuntimeState;
   version: string;
+  maxBodyBytes: number;
 }): Promise<void> {
-  const url = new URL(args.request.url ?? "/", "http://127.0.0.1");
+  const url = new URL(args.request.url ?? "/", `http://${XIAOQI_DEFAULT_HOST}`);
 
-  if (args.request.method === "GET" && url.pathname === "/health") {
+  if (url.pathname === "/health") {
+    requireMethod(args.request, "GET");
     writeJson(args.response, 200, await buildHealth(args.version));
     return;
   }
 
-  if (args.request.method === "POST" && url.pathname === "/plan") {
-    const body = await readJson<PlanRequest>(args.request);
+  if (url.pathname === "/plan") {
+    requireMethod(args.request, "POST");
+    const body = await readJson<PlanRequest>(args.request, args.maxBodyBytes);
     writeJson(args.response, 200, buildPlan(body, args.state));
     return;
   }
 
-  if (args.request.method === "POST" && url.pathname === "/chat") {
-    const body = await readJson<ChatRequest>(args.request);
+  if (url.pathname === "/chat") {
+    requireMethod(args.request, "POST");
+    const body = await readJson<ChatRequest>(args.request, args.maxBodyBytes);
     writeJson(args.response, 200, buildChat(body, args.state));
     return;
   }
 
-  if (args.request.method === "POST" && url.pathname === "/execute") {
-    const body = await readJson<ExecuteRequest>(args.request);
+  if (url.pathname === "/execute") {
+    requireMethod(args.request, "POST");
+    const body = await readJson<ExecuteRequest>(args.request, args.maxBodyBytes);
     const result = buildExecute(body, args.state);
     writeJson(args.response, result.status === "awaiting_confirmation" ? 202 : 200, result);
     return;
   }
 
-  if (args.request.method === "GET" && url.pathname === "/status") {
+  if (url.pathname === "/billing") {
+    requireMethod(args.request, "POST");
+    const body = await readJson<MdouBillingRequest>(args.request, args.maxBodyBytes);
+    writeJson(args.response, 200, buildBilling(body, args.state));
+    return;
+  }
+
+  if (url.pathname === "/billing/status") {
+    requireMethod(args.request, "GET");
+    const billingId = url.searchParams.get("billingId");
+    if (!billingId) {
+      throw new HttpError(400, "billingId_required", "billingId is required.");
+    }
+    const billing = args.state.getBilling(billingId);
+    writeJson(args.response, billing ? 200 : 404, billing ?? { error: "billing_not_found" });
+    return;
+  }
+
+  if (url.pathname === "/status") {
+    requireMethod(args.request, "GET");
     const taskId = url.searchParams.get("taskId");
     if (!taskId) {
-      writeJson(args.response, 400, { error: "taskId_required" });
-      return;
+      throw new HttpError(400, "taskId_required", "taskId is required.");
     }
 
     const task = args.state.getTask(taskId);
@@ -85,11 +143,18 @@ async function routeRequest(args: {
     return;
   }
 
-  if (args.request.method === "GET" && url.pathname.startsWith("/status/")) {
+  if (url.pathname.startsWith("/status/")) {
+    requireMethod(args.request, "GET");
     const taskId = decodeURIComponent(url.pathname.slice("/status/".length));
     const task = args.state.getTask(taskId);
     writeJson(args.response, task ? 200 : 404, task ?? { error: "task_not_found" });
     return;
+  }
+
+  if (knownPath(url.pathname)) {
+    throw new HttpError(405, "method_not_allowed", "HTTP method is not supported.", {
+      allow: allowedMethod(url.pathname),
+    });
   }
 
   writeJson(args.response, 404, { error: "not_found" });
@@ -106,6 +171,10 @@ export async function buildHealth(version: string): Promise<HealthResponse> {
     version,
     mode: "local-mock",
     providerCalls: "disabled",
+    bind: {
+      host: XIAOQI_DEFAULT_HOST,
+      port: XIAOQI_DEFAULT_PORT,
+    },
     prompt: {
       kernelLoaded: prompts.kernel.includes("Xiaoqi Agent"),
       modeCount: Object.keys(prompts.modes).length,
@@ -184,9 +253,12 @@ export function buildChat(request: ChatRequest, state: XiaoqiRuntimeState): Chat
 }
 
 export function buildExecute(request: ExecuteRequest, state: XiaoqiRuntimeState): ExecuteResponse {
+  if (!request || typeof request !== "object") {
+    throw new HttpError(400, "invalid_execute_request", "Execute request must be an object.");
+  }
   const validation = validateToolInput(request.toolName, request.input);
   if (!validation.ok) {
-    throw new Error(validation.errors.join("; "));
+    throw new HttpError(400, "invalid_tool_input", validation.errors.join("; "));
   }
 
   const context = {
@@ -202,35 +274,71 @@ export function buildExecute(request: ExecuteRequest, state: XiaoqiRuntimeState)
     definition?.confirmRequired && !request.confirmed
       ? "awaiting_confirmation"
       : "dry_run_completed";
-  const invocation = createToolInvocationRecord({
-    context,
-    toolName: request.toolName,
-    input: request.input,
-    status,
-  });
+  const taskKey = `execute:${context.projectId}:${context.sessionId}:${request.toolName}:${context.idempotencyKey}`;
 
-  const adapterResult = buildAdapterResult(
-    request.toolName,
-    request.input,
-    Boolean(request.confirmed),
-  );
-  const task = state.createTask({
-    status,
-    providerCalled: false,
-    toolName: request.toolName,
-    result: {
-      invocation,
-      adapterResult,
-    },
+  const task = state.getOrCreateTask(taskKey, () => {
+    const billing = buildBilling(
+      {
+        action: request.confirmed ? "reserve" : "estimate",
+        idempotencyKey: `execute:${context.idempotencyKey}`,
+        toolName: request.toolName,
+        amount: request.confirmed ? 1 : 0,
+        reason: "execute mock billing boundary",
+      },
+      state,
+    );
+    const invocation = createToolInvocationRecord({
+      context,
+      toolName: request.toolName,
+      input: request.input,
+      status,
+    });
+    const adapterResult = buildAdapterResult(
+      request.toolName,
+      request.input,
+      Boolean(request.confirmed),
+    );
+    return {
+      status,
+      providerCalled: false,
+      toolName: request.toolName,
+      billing,
+      result: {
+        invocation,
+        adapterResult,
+      },
+    };
   });
 
   return {
     taskId: task.taskId,
+    reused: task.reused,
     status: task.status,
     providerCalled: false,
     toolName: request.toolName,
+    billing: task.billing,
     result: task.result,
   };
+}
+
+export function buildBilling(
+  request: MdouBillingRequest,
+  state: XiaoqiRuntimeState,
+): MdouBillingEntry {
+  const allowedActions = ["estimate", "reserve", "settle", "refund", "cancel"];
+  if (!request || typeof request !== "object") {
+    throw new HttpError(400, "invalid_billing_request", "Billing request must be an object.");
+  }
+  if (!allowedActions.includes(request.action)) {
+    throw new HttpError(400, "invalid_billing_action", "Billing action is not supported.");
+  }
+  if (!request.idempotencyKey) {
+    throw new HttpError(400, "billing_idempotency_required", "Billing idempotencyKey is required.");
+  }
+  if (request.amount !== undefined && (!Number.isFinite(request.amount) || request.amount < 0)) {
+    throw new HttpError(400, "invalid_billing_amount", "Billing amount must be a non-negative number.");
+  }
+  return state.getOrCreateBilling(request);
 }
 
 function buildAdapterResult(toolName: ToolName, input: unknown, confirmed: boolean): unknown {
@@ -260,19 +368,70 @@ function buildAdapterResult(toolName: ToolName, input: unknown, confirmed: boole
   };
 }
 
-async function readJson<T>(request: IncomingMessage): Promise<T> {
+function requireMethod(request: IncomingMessage, method: string): void {
+  if (request.method !== method) {
+    throw new HttpError(405, "method_not_allowed", "HTTP method is not supported.", {
+      allow: method,
+    });
+  }
+}
+
+async function readJson<T>(request: IncomingMessage, maxBodyBytes: number): Promise<T> {
   const chunks: Buffer[] = [];
+  let totalBytes = 0;
+
   for await (const chunk of request) {
-    chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk));
+    const buffer = Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk);
+    totalBytes += buffer.byteLength;
+    if (totalBytes > maxBodyBytes) {
+      throw new HttpError(413, "request_too_large", "Request body is too large.");
+    }
+    chunks.push(buffer);
   }
 
   const raw = Buffer.concat(chunks).toString("utf8");
-  return raw ? (JSON.parse(raw) as T) : ({} as T);
+  if (!raw.trim()) {
+    return {} as T;
+  }
+
+  try {
+    return JSON.parse(raw) as T;
+  } catch {
+    throw new HttpError(400, "invalid_json", "Request body must be valid JSON.");
+  }
 }
 
-function writeJson(response: ServerResponse, statusCode: number, payload: unknown): void {
+function knownPath(pathname: string): boolean {
+  return [
+    "/health",
+    "/plan",
+    "/chat",
+    "/execute",
+    "/billing",
+    "/billing/status",
+    "/status",
+  ].some((path) => pathname === path || pathname.startsWith("/status/"));
+}
+
+function allowedMethod(pathname: string): string {
+  if (pathname === "/health" || pathname === "/status" || pathname.startsWith("/status/")) {
+    return "GET";
+  }
+  if (pathname === "/billing/status") {
+    return "GET";
+  }
+  return "POST";
+}
+
+function writeJson(
+  response: ServerResponse,
+  statusCode: number,
+  payload: unknown,
+  headers: Record<string, string> = {},
+): void {
   response.writeHead(statusCode, {
     "content-type": "application/json; charset=utf-8",
+    ...headers,
   });
   response.end(`${JSON.stringify(payload, null, 2)}\n`);
 }

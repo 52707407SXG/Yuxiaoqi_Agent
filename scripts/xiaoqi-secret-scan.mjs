@@ -1,21 +1,6 @@
 #!/usr/bin/env node
-import { readdir, readFile, stat } from "node:fs/promises";
-import { join, relative } from "node:path";
-
-const root = process.cwd();
-const scanTargets = [
-  "README.md",
-  "package.json",
-  "XIAOQI-BASELINE.md",
-  "xiaoqi",
-  "prompts",
-  "docs/architecture.md",
-  "docs/prompt-system.md",
-  "docs/tool-contract.md",
-  "docs/operation-runbook.md",
-  "scripts/xiaoqi-brand-scan.mjs",
-  "scripts/xiaoqi-secret-scan.mjs",
-];
+import { readFile } from "node:fs/promises";
+import { spawnSync } from "node:child_process";
 
 const patterns = [
   { label: "private key", pattern: /-----BEGIN [A-Z ]*PRIVATE KEY-----/g },
@@ -32,18 +17,14 @@ const patterns = [
   },
 ];
 
-const files = [];
-for (const target of scanTargets) {
-  await collect(join(root, target), files);
-}
-
+const files = listGitDeliveryFiles();
 const findings = [];
+
 for (const file of files) {
-  const rel = relative(root, file);
-  const text = await readFile(file, "utf8");
+  const text = await readFile(file, "utf8").catch(() => "");
   for (const item of patterns) {
     for (const match of text.matchAll(item.pattern)) {
-      findings.push(`${rel}: ${item.label}`);
+      findings.push(`${file}: ${item.label}`);
     }
   }
 }
@@ -56,24 +37,18 @@ if (findings.length) {
   process.exit(1);
 }
 
-console.log(`Xiaoqi secret scan passed: ${files.length} files checked.`);
+console.log(`Xiaoqi secret scan passed: ${files.length} tracked delivery files checked.`);
 
-async function collect(path, files) {
-  const info = await stat(path).catch(() => null);
-  if (!info) {
-    return;
+function listGitDeliveryFiles() {
+  const result = spawnSync("git", ["ls-files"], {
+    encoding: "utf8",
+    stdio: ["ignore", "pipe", "pipe"],
+  });
+  if (result.status !== 0) {
+    throw new Error(result.stderr || "git ls-files failed");
   }
-  if (info.isFile()) {
-    files.push(path);
-    return;
-  }
-  if (!info.isDirectory()) {
-    return;
-  }
-  for (const entry of await readdir(path)) {
-    if (entry === "node_modules" || entry === ".git" || entry === "dist") {
-      continue;
-    }
-    await collect(join(path, entry), files);
-  }
+  return result.stdout
+    .split("\n")
+    .map((line) => line.trim())
+    .filter(Boolean);
 }

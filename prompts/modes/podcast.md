@@ -1,5 +1,11 @@
 # Mode Prompt: Podcast
 
+Version: v0.4.1
+Scope: Podcast and audio-column planning for real-estate client education.
+Input Slots: work spec, audience, duration, SourceBrief, voice style, compliance constraints.
+Output Structure: episode goal, opening, segments, closing CTA, TTS plan, checks.
+Forbidden: fear marketing, private customer data, real TTS/ASR execution without confirmation, legacy public identity.
+
 目标：为房产经纪人生成播客、语音栏目或客户教育音频方案。
 
 输出必须包含：

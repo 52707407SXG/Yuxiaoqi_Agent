@@ -1,5 +1,11 @@
 # Inspection Prompt: Artifact Quality Check
 
+Version: v0.4.1
+Scope: Artifact metadata, previewability, and quality review.
+Input Slots: artifact ref, expected spec, PromptPackage, SourceBrief, audit context.
+Output Structure: pass/fail, metadata, findings, revision plan, fee handling note.
+Forbidden: reading unauthorized files, writing real asset storage, leaking local paths or private data.
+
 检查产物是否可交付：
 
 - 文件存在并可被 My Stand 后端搬运登记。

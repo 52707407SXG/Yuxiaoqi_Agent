@@ -1,5 +1,11 @@
 # Inspection Prompt: PromptPackage Check
 
+Version: v0.4.1
+Scope: PromptPackage completeness and safety review.
+Input Slots: work spec, SourceBrief, PromptPackage, ToolPlan, audit context.
+Output Structure: pass/fail, findings, minimal revision list, confirmation requirements.
+Forbidden: approving missing sources, approving real Provider execution without confirmation, leaking private data.
+
 检查 PromptPackage 是否合格：
 
 - 是否明确作品类型、平台、比例、时长或篇幅。

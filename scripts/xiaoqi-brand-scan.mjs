@@ -1,45 +1,45 @@
 #!/usr/bin/env node
-import { readdir, readFile, stat } from "node:fs/promises";
-import { join, relative } from "node:path";
+import { readFile } from "node:fs/promises";
+import { spawnSync } from "node:child_process";
 
-const root = process.cwd();
-const scanTargets = [
-  "README.md",
-  "package.json",
+const allowedAttributionFiles = new Set([
+  "LICENSE",
+  "THIRD_PARTY_NOTICES.md",
   "XIAOQI-BASELINE.md",
-  "xiaoqi",
-  "prompts",
-  "docs/architecture.md",
-  "docs/prompt-system.md",
-  "docs/tool-contract.md",
-  "docs/operation-runbook.md",
+]);
+
+const forbiddenTerms = [
+  "Her" + "mes",
+  "her" + "mes",
+  "Lu" + "can",
+  "lu" + "can",
+  "Xiao" + "ban",
+  "xiao" + "ban",
+  "Open" + "Claw",
+  "open" + "claw",
+  "OPEN" + "CLAW_",
+  "open" + "claw.mjs",
 ];
 
-const forbidden = [
-  { label: "Hermes", pattern: /\bHermes\b/g },
-  { label: "Lucan", pattern: /\bLucan\b/g },
-  { label: "Xiaoban", pattern: /\bXiaoban\b/g },
-  { label: "openclaw.mjs", pattern: /\bopenclaw\.mjs\b/g },
-  { label: "OPENCLAW_", pattern: /\bOPENCLAW_/g },
-  { label: "OpenClaw", pattern: /\bOpenClaw\b/g },
-  { label: "openclaw", pattern: /\bopenclaw\b/g },
-];
-
-const files = [];
-for (const target of scanTargets) {
-  await collect(join(root, target), files);
-}
-
+const files = listGitDeliveryFiles();
 const findings = [];
+
 for (const file of files) {
-  const rel = relative(root, file);
-  const text = await readFile(file, "utf8");
-  for (const item of forbidden) {
-    for (const match of text.matchAll(item.pattern)) {
-      const index = match.index ?? 0;
-      if (!isAllowedAttribution(rel, item.label, text, index)) {
-        findings.push(`${rel}: ${item.label}`);
+  if (!allowedAttributionFiles.has(file)) {
+    for (const term of forbiddenTerms) {
+      if (file.includes(term)) {
+        findings.push(`${file}: forbidden term in filename: ${term}`);
       }
+    }
+  }
+
+  const text = await readFile(file, "utf8").catch(() => "");
+  if (allowedAttributionFiles.has(file)) {
+    continue;
+  }
+  for (const term of forbiddenTerms) {
+    if (text.includes(term)) {
+      findings.push(`${file}: forbidden term in public content: ${term}`);
     }
   }
 }
@@ -52,43 +52,19 @@ if (findings.length) {
   process.exit(1);
 }
 
-console.log(`Xiaoqi brand scan passed: ${files.length} public-surface files checked.`);
+console.log(`Xiaoqi brand scan passed: ${files.length} tracked delivery files and filenames checked.`);
 
-async function collect(path, files) {
-  const info = await stat(path).catch(() => null);
-  if (!info) {
-    return;
+function listGitDeliveryFiles() {
+  const result = spawnSync("git", ["ls-files"], {
+    encoding: "utf8",
+    stdio: ["ignore", "pipe", "pipe"],
+  });
+  if (result.status !== 0) {
+    throw new Error(result.stderr || "git ls-files failed");
   }
-  if (info.isFile()) {
-    files.push(path);
-    return;
-  }
-  if (!info.isDirectory()) {
-    return;
-  }
-  for (const entry of await readdir(path)) {
-    if (entry === "node_modules" || entry === ".git" || entry === "dist") {
-      continue;
-    }
-    await collect(join(path, entry), files);
-  }
-}
-
-function isAllowedAttribution(file, label, text, index) {
-  if (file === "XIAOQI-BASELINE.md") {
-    return label === "OpenClaw" || label === "openclaw";
-  }
-  if (file === "README.md") {
-    return label === "OpenClaw" || label === "openclaw";
-  }
-  if (file.startsWith("docs/")) {
-    return label === "OpenClaw" || label === "openclaw";
-  }
-
-  const context = text.slice(Math.max(0, index - 16), index + 32);
-  if (file === "package.json" && context.includes("@openclaw/")) {
-    return label === "openclaw";
-  }
-
-  return false;
+  return result.stdout
+    .split("\n")
+    .map((line) => line.trim())
+    .filter(Boolean)
+    .filter((file) => !file.startsWith(".git/"));
 }

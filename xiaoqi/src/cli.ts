@@ -2,7 +2,13 @@ import { readFile } from "node:fs/promises";
 import { createRequire } from "node:module";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
-import { buildHealth, buildPlan, createXiaoqiServer } from "./runtime/server.ts";
+import {
+  buildHealth,
+  buildPlan,
+  createXiaoqiServer,
+  XIAOQI_DEFAULT_HOST,
+  XIAOQI_DEFAULT_PORT,
+} from "./runtime/server.ts";
 import { createXiaoqiRuntimeState } from "./runtime/state.ts";
 
 const require = createRequire(import.meta.url);
@@ -20,8 +26,8 @@ if (command === "--version" || command === "-v" || command === "version") {
   const plan = buildPlan(input, createXiaoqiRuntimeState());
   console.log(JSON.stringify(plan, null, 2));
 } else if (command === "serve") {
-  const port = Number(readFlag("--port") ?? process.env.XIAOQI_PORT ?? 3417);
-  const host = readFlag("--host") ?? "127.0.0.1";
+  const port = Number(readFlag("--port") ?? process.env.XIAOQI_PORT ?? XIAOQI_DEFAULT_PORT);
+  const host = readFlag("--host") ?? process.env.XIAOQI_HOST ?? XIAOQI_DEFAULT_HOST;
   const server = createXiaoqiServer({ version: packageJson.version });
   server.listen(port, host, () => {
     const address = server.address();
@@ -59,6 +65,6 @@ Commands:
   xiaoqi --version
   xiaoqi health
   xiaoqi plan < request.json
-  xiaoqi serve --host 127.0.0.1 --port 3417
+  xiaoqi serve --host 127.0.0.1 --port 8788
 `);
 }

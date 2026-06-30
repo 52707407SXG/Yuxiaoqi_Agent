@@ -388,6 +388,14 @@ function validateSchema(schema: JsonSchema, value: unknown, path: string): strin
 
   if (schema.type === "object" && schema.properties) {
     const record = value as Record<string, unknown>;
+    if (schema.additionalProperties === false) {
+      for (const key of Object.keys(record)) {
+        if (!(key in schema.properties)) {
+          errors.push(`${path}.${key} is not allowed`);
+        }
+      }
+    }
+
     for (const key of schema.required ?? []) {
       if (!(key in record)) {
         errors.push(`${path}.${key} is required`);

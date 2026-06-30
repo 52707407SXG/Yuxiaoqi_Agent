@@ -26,6 +26,10 @@ export type HealthResponse = {
   version: string;
   mode: XiaoqiRuntimeMode;
   providerCalls: "disabled";
+  bind: {
+    host: "127.0.0.1";
+    port: 8788;
+  };
   prompt: {
     kernelLoaded: boolean;
     modeCount: number;
@@ -34,6 +38,31 @@ export type HealthResponse = {
     registered: number;
     confirmRequired: number;
   };
+};
+
+export type MdouBillingAction = "estimate" | "reserve" | "settle" | "refund" | "cancel";
+
+export type MdouBillingRequest = {
+  action: MdouBillingAction;
+  idempotencyKey: string;
+  toolName?: ToolName;
+  taskId?: string;
+  amount?: number;
+  reason?: string;
+};
+
+export type MdouBillingEntry = {
+  billingId: string;
+  action: MdouBillingAction;
+  status: MdouBillingAction;
+  idempotencyKey: string;
+  toolName?: ToolName;
+  taskId?: string;
+  amount: number;
+  currency: "mdou";
+  realCharge: false;
+  createdAt: string;
+  auditSummary: string;
 };
 
 export type PlanRequest = {
@@ -85,9 +114,11 @@ export type ExecuteRequest = {
 
 export type ExecuteResponse = {
   taskId: string;
+  reused: boolean;
   status: "awaiting_confirmation" | "dry_run_completed";
   providerCalled: false;
   toolName: ToolName;
+  billing: MdouBillingEntry;
   result: unknown;
 };
 

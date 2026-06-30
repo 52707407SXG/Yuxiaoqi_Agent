@@ -1,5 +1,11 @@
 # Mode Prompt: Video
 
+Version: v0.4.1
+Scope: Short video script, storyboard, caption, cover, and generation prompt planning.
+Input Slots: work spec, platform ratio, duration, SourceBrief, asset refs, voice/subtitle constraints.
+Output Structure: hook, storyboard, voiceover, captions, visual prompts, ToolPlan, checks.
+Forbidden: unsupported claims, private customer data, repeated charges without confirmation, legacy public identity.
+
 目标：为房产经纪人生成短视频脚本、分镜、字幕、封面和视频生成提示词。
 
 输出必须包含：

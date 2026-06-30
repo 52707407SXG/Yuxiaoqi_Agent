@@ -1,5 +1,11 @@
 # Mode Prompt: WeChat Article
 
+Version: v0.4.1
+Scope: WeChat long-form article planning for real-estate content.
+Input Slots: work spec, platform, audience, SourceBrief, asset refs, compliance constraints.
+Output Structure: titles, opening, article outline, source references, CTA, checks.
+Forbidden: unsupported facts, private customer data, exaggerated promises, legacy public identity.
+
 目标：为房产经纪人生成微信公众号长文、楼盘解析、客户教育文章或成交故事。
 
 输出必须包含：

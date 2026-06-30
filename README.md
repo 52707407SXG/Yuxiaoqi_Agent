@@ -2,64 +2,122 @@
 
 小七，正式中文名“余小柒”，工程名 `Xiaoqi Agent`，是面向 My Stand 的房产内容作品导演 Agent。
 
-当前仓库是 v0.4 本地首版改造：基于固定上游源码 baseline 建立独立仓库身份，落地 runtime 可加载 prompt、工具契约、mock runtime、mock HTTP 接口、测试、扫描和审查文档。首版只做本地 mock，不部署服务，不配置 Provider，不调用真实生成工具，不写 My Stand SQLite 或真实 `file_assets`。
+v0.4.1 是完整 Agent 化本地修复包：仓库 main 已收敛为小七独立交付面，第三方拉取后可以安装、构建、启动、验证、阅读运行说明。当前版本仍是 local mock runtime，不部署服务器、不配置真实 Provider、不调用真实生成、不扣真实 M豆、不写 My Stand SQLite 或真实资产。
 
-## 本地使用
+## Requirements
+
+- Node.js `>=22.19.0`
+- npm `>=11`
+- Git
+
+小七 v0.4.1 没有运行时 npm 依赖。Node 负责运行仓库内版本化的 `.ts` 源码，`build` 会生成稳定的 `dist/xiaoqi/cli.mjs` 包装入口。
+
+## Install
 
 ```bash
-pnpm xiaoqi --version
-pnpm xiaoqi health
-pnpm xiaoqi:serve
-pnpm xiaoqi:verify
+git clone git@github.com:52707407SXG/Yuxiaoqi_Agent.git
+cd Yuxiaoqi_Agent
+npm install --ignore-scripts
+npm run build
 ```
 
-本地 mock server 默认监听 `127.0.0.1:3417`，提供：
+## Start
+
+默认只绑定本机回环地址：
+
+```bash
+npm start
+```
+
+默认监听：
+
+```txt
+http://127.0.0.1:8788
+```
+
+可选环境变量：
+
+```bash
+XIAOQI_HOST=127.0.0.1
+XIAOQI_PORT=8788
+XIAOQI_LOG_LEVEL=info
+XIAOQI_PROVIDER_MODE=mock
+```
+
+`XIAOQI_PROVIDER_MODE` 在 v0.4.1 只允许 mock 语义。真实 Provider 需要后续单独授权和审查。
+
+## CLI
+
+```bash
+node xiaoqi.mjs --version
+node xiaoqi.mjs health
+node xiaoqi.mjs plan < request.json
+node xiaoqi.mjs serve --host 127.0.0.1 --port 8788
+```
+
+## HTTP API
 
 - `GET /health`
 - `POST /plan`
 - `POST /chat`
 - `POST /execute`
 - `GET /status?taskId=...`
+- `POST /billing`
+- `GET /billing/status?billingId=...`
 
-所有高成本工具、真实 Provider、外部 CLI 和扣 M豆动作都会停在 ToolPlan 或 dry-run，不会真实执行。
+HTTP runtime 行为：
 
-## 首版落地范围
+- body 上限：128 KiB
+- 非法 JSON：`400 invalid_json`
+- 超大请求：`413 request_too_large`
+- 不支持方法：`405 method_not_allowed`
+- 错误响应不返回堆栈
+- `/execute` 使用 `projectId + sessionId + toolName + idempotencyKey` 去重
+- `/status` 稳定读回 mock task
+- `/billing` 支持 M豆 mock `estimate/reserve/settle/refund/cancel`，永不真实扣费
 
-- 品牌：根包名、二进制入口、README、runtime health、prompt 和文档使用小七 / 余小柒 / Xiaoqi Agent。
-- Prompt：`prompts/kernel.system.md`、8 个 mode prompt、2 个 inspection prompt，由 `xiaoqi/src/prompts/loader.ts` 加载。
-- 工具契约：`xiaoqi/src/contracts/toolRegistry.ts` 定义工具类型、schema 和注册信息。
-- Adapter：`xiaoqi/src/providers/` 提供即梦 CLI 与 ffmpeg 的 dry-run 骨架。
-- Runtime：`xiaoqi/src/runtime/server.ts` 提供 health / plan / chat / execute / status mock 接口。
-- 测试：`xiaoqi/tests/` 覆盖 prompt、tool contract 和 mock runtime。
-- 扫描：`scripts/xiaoqi-brand-scan.mjs`、`scripts/xiaoqi-secret-scan.mjs`。
+## Verify
 
-## 上游来源
+```bash
+npm run build
+npm test
+npm run xiaoqi:scan:brand
+npm run xiaoqi:scan:secrets
+npm run xiaoqi:smoke:http
+npm run xiaoqi:fresh-clone
+npm run verify
+```
 
-本仓库 baseline 来自 OpenClaw 的固定 commit：
+`npm run verify` 覆盖 build、单测、品牌扫描、密钥扫描、CLI version、CLI health、HTTP smoke、fresh clone 安装构建检查。
 
-- source commit: `738b2be4b49b0182788e70abb5454faf82407a2d`
-- package version: `2026.6.10`
-- license: MIT
-- baseline commit in this repository: `bec7f82900d2052b2098b5b8f1eb1e4191d1b612`
-- baseline branch/tag: `xiaoqi-openclaw-baseline-2026-06-30-738b2be`
+## My Stand Bridge
 
-`LICENSE` 和 `THIRD_PARTY_NOTICES.md` 保留在仓库根目录，用于审查上游 license 和第三方 notices。
+My Stand 后端应作为唯一调用方：
 
-## 禁止边界
+```txt
+My Stand backend
+  -> 127.0.0.1:8788 /plan /chat /execute /status /billing
+  -> authorization, audit, M-dou confirmation, asset registration
+  -> controlled Provider adapter
+```
 
-v0.4 本地首版禁止：
+前端不得直连小七。小七不得绕过 My Stand 后端读取用户资料、访问数据库、扫描目录、读取密钥或写真实资产。
 
-- 创建 `/opt/xiaoqi-agent` 或 `/var/lib/xiaoqi`。
-- 创建或启动 `xiaoqi-agent.service`。
-- 配置 DeepSeek、百炼、即梦 CLI、ComfyUI、ffmpeg、TTS、ASR 或任何 Provider 密钥/登录态。
-- 调用真实 Provider。
-- 写 My Stand SQLite、WAL、SHM、附件目录或真实 `file_assets`。
-- 发布 dev-preview 或 production。
-- 携带旧本地目录、旧 key、旧 cookie、旧记忆或旧配置进入小七。
+## Provider Boundary
 
-## 审查文档
+v0.4.1 只提供 dry-run adapter 骨架：
 
-- [Baseline](XIAOQI-BASELINE.md)
-- [Prompt System](docs/prompt-system.md)
-- [Tool Contract](docs/tool-contract.md)
-- [Operation Runbook](docs/operation-runbook.md)
+- image/video generation adapter plan
+- whitelist media transcode adapter plan
+- audio TTS/ASR contract plan
+- artifact inspection contract
+
+所有真实 Provider、外部 CLI、批量生成、长视频、扣 M豆动作都必须先返回 ToolPlan，等待 My Stand 后端确认。
+
+## Source And License
+
+固定来源、baseline commit/tag、license 和 notice 证明写在 `XIAOQI-BASELINE.md`。根目录保留 `LICENSE` 和 `THIRD_PARTY_NOTICES.md`。
+
+## Runbook
+
+完整运行、systemd 模板、日志、健康检查、回滚、My Stand 桥接验证和禁用边界见 `docs/operation-runbook.md`。

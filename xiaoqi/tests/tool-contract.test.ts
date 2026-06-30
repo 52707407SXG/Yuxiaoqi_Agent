@@ -68,6 +68,15 @@ test("tool input schema rejects missing required fields", () => {
     }),
     { ok: true },
   );
+
+  assert.deepEqual(
+    validateToolInput("image.generate", {
+      promptPackage: { title: "楼盘封面" },
+      aspectRatio: "3:4",
+      unexpected: true,
+    }),
+    { ok: false, errors: ["input.unexpected is not allowed"] },
+  );
 });
 
 test("provider adapters are dry-run only", () => {

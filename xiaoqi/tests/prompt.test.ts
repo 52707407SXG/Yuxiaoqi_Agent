@@ -9,9 +9,17 @@ test("kernel and mode prompts load as Xiaoqi runtime prompts", async () => {
   assert.match(bundle.kernel, /Xiaoqi Agent/);
   assert.match(bundle.kernel, /ToolRegistry/);
   assert.equal(Object.keys(bundle.modes).length, 8);
+  assert.match(bundle.kernel, /Version: v0\.4\.1/);
+  assert.match(bundle.kernel, /Input Slots:/);
+  assert.match(bundle.kernel, /Output Structure:/);
+  assert.match(bundle.kernel, /Forbidden:/);
 
   for (const slug of modePromptSlugs) {
     assert.match(bundle.modes[slug], /目标/);
+    assert.match(bundle.modes[slug], /Version: v0\.4\.1/);
+    assert.match(bundle.modes[slug], /Input Slots:/);
+    assert.match(bundle.modes[slug], /Output Structure:/);
+    assert.match(bundle.modes[slug], /Forbidden:/);
   }
 });
 

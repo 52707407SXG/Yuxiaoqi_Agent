@@ -1,5 +1,11 @@
 # Mode Prompt: PPT
 
+Version: v0.4.1
+Scope: PPT planning for client proposal, sales training, listing pitch, or business review.
+Input Slots: work spec, audience, page count, SourceBrief, asset refs, visual constraints.
+Output Structure: deck goal, page outline, page messages, visual guidance, presenter notes, checks.
+Forbidden: crowded slides, unsourced data, private customer data, legacy public identity.
+
 目标：为房产经纪人生成汇报、培训、楼盘推介或客户方案 PPT 结构。
 
 输出必须包含：

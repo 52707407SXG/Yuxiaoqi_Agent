@@ -1,10 +1,10 @@
 # Xiaoqi Tool Contract
 
-## Registry Location
+## Registry
 
-The runtime registry is implemented in `xiaoqi/src/contracts/toolRegistry.ts`.
+The runtime registry is `xiaoqi/src/contracts/toolRegistry.ts`.
 
-Every tool declares:
+Each tool declares:
 
 - `name`
 - `category`
@@ -20,6 +20,8 @@ Every tool declares:
 - `redactionRules`
 - `confirmRequired`
 
+Unknown tools and unknown input fields are rejected before planning or execution.
+
 ## First Batch Tools
 
 - `source.read`
@@ -33,43 +35,25 @@ Every tool declares:
 - `artifact.inspect`
 - `skill.save`
 
-## Invocation Shape
+## Invocation And Idempotency
 
-`xiaoqi/src/tools/invocation.ts` defines:
+`/execute` deduplicates by:
 
-- `invocationId`
-- `projectId`
-- `sessionId`
-- `messageId`
-- `idempotencyKey`
-- `userId`
-- `companyId`
-- `toolName`
-- `inputHash`
-- `status`
-- `startedAt`
-- `endedAt`
-- `costEstimate`
-- `costFinal`
-- `artifactIds`
-- `errorCode`
-- `errorMessageSafe`
-- `auditSummary`
+`projectId + sessionId + toolName + idempotencyKey`
 
-The input hash is stable and deterministic to support idempotency and audit checks.
+Duplicate calls return the same `taskId` and set `reused: true`. `/status` returns the same in-memory mock task.
 
-## Adapter Rules
+## Billing
 
-`image.generate` and `video.generate` plan through the Jimeng CLI adapter skeleton. `transcode.ffmpeg` plans through the ffmpeg adapter skeleton. Both adapters are dry-run only in v0.4 and return `providerCalled: false`.
+M-dou mock billing supports:
 
-Allowed ffmpeg operations are:
+- `estimate`
+- `reserve`
+- `settle`
+- `refund`
+- `cancel`
 
-- `transcode`
-- `crop`
-- `extract-frame`
-- `merge`
-- `subtitle`
-- `mux`
+Every billing entry has `realCharge: false`. v0.4.1 never touches real balances.
 
 ## Asset Return
 
@@ -84,4 +68,4 @@ Generated artifacts must return a temporary artifact contract:
 - `safeTitle`
 - `sourceInvocationId`
 
-The backend is responsible for final `file_assets` registration.
+The backend is responsible for final asset registration.

@@ -1,5 +1,11 @@
 # Mode Prompt: PDF Report
 
+Version: v0.4.1
+Scope: Printable PDF report planning for market brief, property comparison, client advice, or visit recap.
+Input Slots: work spec, SourceBrief, asset refs, audience, report length, risk notes.
+Output Structure: title, executive summary, chapter outline, tables/charts, source list, disclaimer, checks.
+Forbidden: unsupported market conclusions, private customer data, hidden sources, legacy public identity.
+
 目标：为房产经纪人生成可导出的 PDF 报告，如市场简报、客户置业建议、楼盘对比或带看复盘。
 
 输出必须包含：

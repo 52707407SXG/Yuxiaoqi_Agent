@@ -13,6 +13,7 @@ test("mock runtime exposes health, plan, chat, execute, and status endpoints", a
   assert.equal(health.agent, "Xiaoqi Agent");
   assert.equal(health.displayName, "余小柒");
   assert.equal(health.providerCalls, "disabled");
+  assert.deepEqual(health.bind, { host: "127.0.0.1", port: 8788 });
   assert.equal(health.prompt.modeCount, 8);
   assert.equal(health.tools.registered, 10);
 
@@ -51,10 +52,70 @@ test("mock runtime exposes health, plan, chat, execute, and status endpoints", a
   );
   assert.equal(execute.providerCalled, false);
   assert.equal(execute.status, "awaiting_confirmation");
+  assert.equal(execute.billing.status, "estimate");
+  assert.equal(execute.billing.realCharge, false);
+
+  const executeAgain = await postJson(`${runtime.url}/execute`, {
+    projectId: "project_1",
+    sessionId: "session_1",
+    idempotencyKey: "same-execute",
+    toolName: "image.generate",
+    input: {
+      promptPackage: { title: "楼盘封面", prompt: "清爽明亮的社区入口" },
+      aspectRatio: "3:4",
+      count: 1,
+    },
+    confirmed: false,
+  }, 202);
+  const executeThird = await postJson(`${runtime.url}/execute`, {
+    projectId: "project_1",
+    sessionId: "session_1",
+    idempotencyKey: "same-execute",
+    toolName: "image.generate",
+    input: {
+      promptPackage: { title: "楼盘封面", prompt: "清爽明亮的社区入口" },
+      aspectRatio: "3:4",
+      count: 1,
+    },
+    confirmed: false,
+  }, 202);
+  assert.equal(executeAgain.taskId, executeThird.taskId);
+  assert.equal(executeThird.reused, true);
 
   const status = await getJson(`${runtime.url}/status?taskId=${execute.taskId}`);
   assert.equal(status.taskId, execute.taskId);
   assert.equal(status.status, "awaiting_confirmation");
+
+  for (const action of ["estimate", "reserve", "settle", "refund", "cancel"]) {
+    const billing = await postJson(`${runtime.url}/billing`, {
+      action,
+      idempotencyKey: `billing-${action}`,
+      amount: action === "estimate" ? 0 : 1,
+    });
+    assert.equal(billing.status, action);
+    assert.equal(billing.realCharge, false);
+  }
+
+  const invalidJson = await fetch(`${runtime.url}/plan`, {
+    method: "POST",
+    body: "{",
+  });
+  assert.equal(invalidJson.status, 400);
+  assert.equal((await invalidJson.json()).error, "invalid_json");
+
+  const tooLarge = await fetch(`${runtime.url}/plan`, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ payload: "x".repeat(140 * 1024) }),
+  });
+  assert.equal(tooLarge.status, 413);
+
+  const wrongMethod = await fetch(`${runtime.url}/health`, {
+    method: "POST",
+  });
+  assert.equal(wrongMethod.status, 405);
+  const wrongMethodPayload = await wrongMethod.json();
+  assert.equal(wrongMethodPayload.error, "method_not_allowed");
 });
 
 async function listen(server: Server): Promise<{
