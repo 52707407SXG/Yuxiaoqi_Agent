@@ -55,7 +55,7 @@ test("mock runtime exposes health, plan, chat, execute, and status endpoints", a
   assert.equal(execute.billing.status, "estimate");
   assert.equal(execute.billing.realCharge, false);
 
-  const executeAgain = await postJson(`${runtime.url}/execute`, {
+  const executeDraft = await postJson(`${runtime.url}/execute`, {
     projectId: "project_1",
     sessionId: "session_1",
     idempotencyKey: "same-execute",
@@ -67,7 +67,10 @@ test("mock runtime exposes health, plan, chat, execute, and status endpoints", a
     },
     confirmed: false,
   }, 202);
-  const executeThird = await postJson(`${runtime.url}/execute`, {
+  assert.equal(executeDraft.status, "awaiting_confirmation");
+  assert.equal(executeDraft.billing.status, "estimate");
+
+  const executeConfirmed = await postJson(`${runtime.url}/execute`, {
     projectId: "project_1",
     sessionId: "session_1",
     idempotencyKey: "same-execute",
@@ -77,14 +80,40 @@ test("mock runtime exposes health, plan, chat, execute, and status endpoints", a
       aspectRatio: "3:4",
       count: 1,
     },
-    confirmed: false,
-  }, 202);
-  assert.equal(executeAgain.taskId, executeThird.taskId);
-  assert.equal(executeThird.reused, true);
+    confirmed: true,
+  });
+  assert.equal(executeConfirmed.taskId, executeDraft.taskId);
+  assert.equal(executeConfirmed.reused, true);
+  assert.equal(executeConfirmed.status, "dry_run_completed");
+  assert.equal(executeConfirmed.providerCalled, false);
+  assert.equal(executeConfirmed.billing.status, "reserve");
+  assert.equal(executeConfirmed.billing.realCharge, false);
+
+  const executeConfirmedAgain = await postJson(`${runtime.url}/execute`, {
+    projectId: "project_1",
+    sessionId: "session_1",
+    idempotencyKey: "same-execute",
+    toolName: "image.generate",
+    input: {
+      promptPackage: { title: "楼盘封面", prompt: "清爽明亮的社区入口" },
+      aspectRatio: "3:4",
+      count: 1,
+    },
+    confirmed: true,
+  });
+  assert.equal(executeConfirmedAgain.taskId, executeDraft.taskId);
+  assert.equal(executeConfirmedAgain.reused, true);
+  assert.equal(executeConfirmedAgain.status, "dry_run_completed");
+  assert.equal(executeConfirmedAgain.billing.billingId, executeConfirmed.billing.billingId);
 
   const status = await getJson(`${runtime.url}/status?taskId=${execute.taskId}`);
   assert.equal(status.taskId, execute.taskId);
   assert.equal(status.status, "awaiting_confirmation");
+
+  const confirmedStatus = await getJson(`${runtime.url}/status?taskId=${executeDraft.taskId}`);
+  assert.equal(confirmedStatus.taskId, executeDraft.taskId);
+  assert.equal(confirmedStatus.status, "dry_run_completed");
+  assert.equal(confirmedStatus.billing.billingId, executeConfirmed.billing.billingId);
 
   for (const action of ["estimate", "reserve", "settle", "refund", "cancel"]) {
     const billing = await postJson(`${runtime.url}/billing`, {

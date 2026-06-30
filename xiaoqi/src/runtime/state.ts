@@ -6,6 +6,8 @@ import {
   type RuntimeTask,
 } from "./types.ts";
 
+type RuntimeTaskDraft = Omit<RuntimeTask, "taskId" | "createdAt" | "reused">;
+
 export class XiaoqiRuntimeState {
   readonly startedAt = new Date().toISOString();
   readonly plansByKey = new Map<string, PlanResponse>();
@@ -27,10 +29,23 @@ export class XiaoqiRuntimeState {
 
   getOrCreateTask(
     key: string,
-    create: () => Omit<RuntimeTask, "taskId" | "createdAt" | "reused">,
+    create: () => RuntimeTaskDraft,
+    updateExisting?: (existing: RuntimeTask) => RuntimeTaskDraft | null,
   ): RuntimeTask {
     const existing = this.tasksByKey.get(key);
     if (existing) {
+      const updatedDraft = updateExisting?.(existing);
+      if (updatedDraft) {
+        const updated: RuntimeTask = {
+          ...updatedDraft,
+          taskId: existing.taskId,
+          createdAt: existing.createdAt,
+          reused: false,
+        };
+        this.tasks.set(existing.taskId, updated);
+        this.tasksByKey.set(key, updated);
+        return { ...updated, reused: true };
+      }
       return { ...existing, reused: true };
     }
 

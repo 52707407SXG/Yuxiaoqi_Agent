@@ -5,7 +5,7 @@
 ```bash
 git clone git@github.com:52707407SXG/Yuxiaoqi_Agent.git
 cd Yuxiaoqi_Agent
-npm install --ignore-scripts
+npm install --package-lock=false --ignore-scripts
 npm run build
 ```
 
@@ -14,6 +14,8 @@ npm run build
 ```bash
 XIAOQI_HOST=127.0.0.1 XIAOQI_PORT=8788 npm start
 ```
+
+`npm start` runs `node dist/xiaoqi/cli.mjs serve`, so run `npm run build` after each checkout or update. The build step checks Node-native TypeScript sources and writes the wrapper entry; it does not bundle Provider code or credentials.
 
 Health check:
 
@@ -53,7 +55,7 @@ WorkingDirectory=/opt/xiaoqi-agent
 Environment=XIAOQI_HOST=127.0.0.1
 Environment=XIAOQI_PORT=8788
 Environment=XIAOQI_PROVIDER_MODE=mock
-ExecStart=/usr/bin/npm start
+ExecStart=/usr/bin/node /opt/xiaoqi-agent/dist/xiaoqi/cli.mjs serve
 Restart=on-failure
 RestartSec=5
 NoNewPrivileges=true
@@ -100,7 +102,7 @@ Rules:
 4. Run `npm run build` and `npm run verify`.
 5. Start on `127.0.0.1:8788` and re-check `/health`.
 
-## Forbidden In v0.4.1
+## Forbidden In v0.4.2
 
 - No server deployment.
 - No server runtime directory creation.

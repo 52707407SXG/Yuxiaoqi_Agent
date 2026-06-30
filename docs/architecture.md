@@ -2,7 +2,7 @@
 
 ## Purpose
 
-Xiaoqi Agent is a local-first creative director runtime for My Stand real-estate content workflows. v0.4.1 focuses on a clean Agent boundary: prompt loading, ToolRegistry validation, mock execution, M-dou mock billing, idempotent task tracking, and safe HTTP behavior.
+Xiaoqi Agent is a local-first creative director runtime for My Stand real-estate content workflows. v0.4.2 focuses on a clean Agent boundary: prompt loading, ToolRegistry validation, mock execution, M-dou mock billing, idempotent confirmation flow, task status readback, and safe HTTP behavior.
 
 ## Runtime Shape
 

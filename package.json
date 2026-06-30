@@ -1,6 +1,6 @@
 {
   "name": "yuxiaoqi-agent",
-  "version": "0.4.1",
+  "version": "0.4.2",
   "description": "Xiaoqi Agent local-first creative director runtime for My Stand",
   "keywords": [
     "xiaoqi",
@@ -40,7 +40,7 @@
   ],
   "scripts": {
     "build": "node scripts/xiaoqi-build.mjs",
-    "start": "node xiaoqi.mjs serve",
+    "start": "node dist/xiaoqi/cli.mjs serve",
     "test": "node --test xiaoqi/tests/*.test.ts",
     "verify": "node scripts/xiaoqi-verify.mjs",
     "xiaoqi": "node xiaoqi.mjs",

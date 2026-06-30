@@ -8,7 +8,7 @@ import {
 
 const port = Number(process.env.XIAOQI_SMOKE_PORT ?? XIAOQI_DEFAULT_PORT);
 const host = process.env.XIAOQI_SMOKE_HOST ?? XIAOQI_DEFAULT_HOST;
-const server = createXiaoqiServer({ version: "0.4.1-smoke" });
+const server = createXiaoqiServer({ version: "0.4.2-smoke" });
 
 await new Promise((resolve) => server.listen(port, host, resolve));
 const address = server.address();
@@ -43,14 +43,26 @@ try {
     confirmed: false,
   };
   const executeA = await postJson("/execute", executeBody, 202);
-  const executeB = await postJson("/execute", executeBody, 202);
+  assert.equal(executeA.status, "awaiting_confirmation");
+  assert.equal(executeA.billing.status, "estimate");
+
+  const executeB = await postJson("/execute", { ...executeBody, confirmed: true });
   assert.equal(executeA.taskId, executeB.taskId);
   assert.equal(executeB.reused, true);
-  assert.equal(executeA.providerCalled, false);
-  assert.equal(executeA.billing.realCharge, false);
+  assert.equal(executeB.status, "dry_run_completed");
+  assert.equal(executeB.providerCalled, false);
+  assert.equal(executeB.billing.status, "reserve");
+  assert.equal(executeB.billing.realCharge, false);
+
+  const executeC = await postJson("/execute", { ...executeBody, confirmed: true });
+  assert.equal(executeC.taskId, executeB.taskId);
+  assert.equal(executeC.reused, true);
+  assert.equal(executeC.status, "dry_run_completed");
+  assert.equal(executeC.billing.billingId, executeB.billing.billingId);
 
   const status = await getJson(`/status?taskId=${encodeURIComponent(executeA.taskId)}`);
   assert.equal(status.taskId, executeA.taskId);
+  assert.equal(status.status, "dry_run_completed");
 
   for (const action of ["estimate", "reserve", "settle", "refund", "cancel"]) {
     const billing = await postJson("/billing", {

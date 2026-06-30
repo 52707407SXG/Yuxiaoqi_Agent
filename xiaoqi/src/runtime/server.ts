@@ -20,6 +20,7 @@ import {
   type MdouBillingRequest,
   type PlanRequest,
   type PlanResponse,
+  type RuntimeTask,
 } from "./types.ts";
 
 export const XIAOQI_DEFAULT_HOST = "127.0.0.1" as const;
@@ -52,7 +53,7 @@ class HttpError extends Error {
 
 export function createXiaoqiServer(options: XiaoqiServerOptions = {}): Server {
   const state = options.state ?? createXiaoqiRuntimeState();
-  const version = options.version ?? "0.4.1";
+  const version = options.version ?? "0.4.2";
   const maxBodyBytes = options.maxBodyBytes ?? XIAOQI_MAX_BODY_BYTES;
 
   return createServer(async (request, response) => {
@@ -276,39 +277,22 @@ export function buildExecute(request: ExecuteRequest, state: XiaoqiRuntimeState)
       : "dry_run_completed";
   const taskKey = `execute:${context.projectId}:${context.sessionId}:${request.toolName}:${context.idempotencyKey}`;
 
-  const task = state.getOrCreateTask(taskKey, () => {
-    const billing = buildBilling(
-      {
-        action: request.confirmed ? "reserve" : "estimate",
-        idempotencyKey: `execute:${context.idempotencyKey}`,
-        toolName: request.toolName,
-        amount: request.confirmed ? 1 : 0,
-        reason: "execute mock billing boundary",
-      },
-      state,
-    );
-    const invocation = createToolInvocationRecord({
-      context,
-      toolName: request.toolName,
-      input: request.input,
-      status,
-    });
-    const adapterResult = buildAdapterResult(
-      request.toolName,
-      request.input,
-      Boolean(request.confirmed),
-    );
-    return {
-      status,
-      providerCalled: false,
-      toolName: request.toolName,
-      billing,
-      result: {
-        invocation,
-        adapterResult,
-      },
-    };
-  });
+  const task = state.getOrCreateTask(
+    taskKey,
+    () => buildExecuteTaskDraft({ request, context, status, state }),
+    (existing) => {
+      if (request.confirmed && existing.status === "awaiting_confirmation") {
+        return buildExecuteTaskDraft({
+          request,
+          context,
+          status: "dry_run_completed",
+          state,
+          taskId: existing.taskId,
+        });
+      }
+      return null;
+    },
+  );
 
   return {
     taskId: task.taskId,
@@ -318,6 +302,55 @@ export function buildExecute(request: ExecuteRequest, state: XiaoqiRuntimeState)
     toolName: request.toolName,
     billing: task.billing,
     result: task.result,
+  };
+}
+
+function buildExecuteTaskDraft(args: {
+  request: ExecuteRequest;
+  context: {
+    projectId: string;
+    sessionId: string;
+    messageId: string;
+    idempotencyKey: string;
+    userId: string;
+    companyId: string;
+  };
+  status: RuntimeTask["status"];
+  state: XiaoqiRuntimeState;
+  taskId?: string;
+}): Omit<RuntimeTask, "taskId" | "createdAt" | "reused"> {
+  const confirmed = args.status === "dry_run_completed";
+  const billing = buildBilling(
+    {
+      action: confirmed ? "reserve" : "estimate",
+      idempotencyKey: `execute:${args.context.idempotencyKey}`,
+      toolName: args.request.toolName,
+      taskId: args.taskId,
+      amount: confirmed ? 1 : 0,
+      reason: "execute mock billing boundary",
+    },
+    args.state,
+  );
+  const invocation = createToolInvocationRecord({
+    context: args.context,
+    toolName: args.request.toolName,
+    input: args.request.input,
+    status: args.status,
+  });
+  const adapterResult = buildAdapterResult(
+    args.request.toolName,
+    args.request.input,
+    confirmed,
+  );
+  return {
+    status: args.status,
+    providerCalled: false,
+    toolName: args.request.toolName,
+    billing,
+    result: {
+      invocation,
+      adapterResult,
+    },
   };
 }
 

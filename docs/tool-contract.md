@@ -41,7 +41,14 @@ Unknown tools and unknown input fields are rejected before planning or execution
 
 `projectId + sessionId + toolName + idempotencyKey`
 
-Duplicate calls return the same `taskId` and set `reused: true`. `/status` returns the same in-memory mock task.
+My Stand should use one business `idempotencyKey` for the complete confirmation flow:
+
+1. First call with `confirmed:false` creates one task in `awaiting_confirmation` and returns `billing.status=estimate`.
+2. A later call with the same key and `confirmed:true` upgrades the same task to `dry_run_completed`, returns HTTP 200, keeps `providerCalled=false`, and returns `billing.status=reserve`.
+3. Repeating the confirmed call with the same key returns the same `taskId`, sets `reused:true`, and reuses the existing reserve billing entry.
+4. `/status` returns the upgraded final task state.
+
+This lets the backend complete `wait for confirmation -> confirmed dry run` with the same business idempotency key. Xiaoqi never calls a real Provider in this flow.
 
 ## Billing
 
@@ -53,7 +60,7 @@ M-dou mock billing supports:
 - `refund`
 - `cancel`
 
-Every billing entry has `realCharge: false`. v0.4.1 never touches real balances.
+Every billing entry has `realCharge: false`. v0.4.2 never touches real balances.
 
 ## Asset Return
 

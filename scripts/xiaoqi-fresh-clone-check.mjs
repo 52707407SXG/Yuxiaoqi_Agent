@@ -10,8 +10,13 @@ const cloneDir = join(tempRoot, "repo");
 
 try {
   run("git", ["clone", "--local", "--no-hardlinks", root, cloneDir], root);
-  run("npm", ["install", "--ignore-scripts", "--no-audit", "--no-fund"], cloneDir);
+  run(
+    "npm",
+    ["install", "--package-lock=false", "--ignore-scripts", "--no-audit", "--no-fund"],
+    cloneDir,
+  );
   run("npm", ["run", "build"], cloneDir);
+  run(process.execPath, ["dist/xiaoqi/cli.mjs", "--version"], cloneDir);
   run(process.execPath, ["xiaoqi.mjs", "--version"], cloneDir);
   run(process.execPath, ["xiaoqi.mjs", "health"], cloneDir);
   run(process.execPath, ["scripts/xiaoqi-brand-scan.mjs"], cloneDir);
