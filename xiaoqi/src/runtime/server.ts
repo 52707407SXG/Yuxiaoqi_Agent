@@ -6,6 +6,10 @@ import {
   validateToolInput,
 } from "../contracts/toolRegistry.ts";
 import { loadPromptBundle } from "../prompts/loader.ts";
+import {
+  resolveXiaoqiLlmConfig,
+  runXiaoqiDirectorChat,
+} from "../providers/deepseek/chatAdapter.ts";
 import { planFfmpegInvocation, type FfmpegOperation } from "../providers/ffmpeg/ffmpegAdapter.ts";
 import { executeJimengCliDryRun } from "../providers/jimeng/jimengCliAdapter.ts";
 import { createToolInvocationRecord, createToolPlan } from "../tools/invocation.ts";
@@ -102,7 +106,7 @@ async function routeRequest(args: {
   if (url.pathname === "/chat") {
     requireMethod(args.request, "POST");
     const body = await readJson<ChatRequest>(args.request, args.maxBodyBytes);
-    writeJson(args.response, 200, buildChat(body, args.state));
+    writeJson(args.response, 200, await buildChat(body, args.state));
     return;
   }
 
@@ -164,6 +168,7 @@ async function routeRequest(args: {
 export async function buildHealth(version: string): Promise<HealthResponse> {
   const prompts = await loadPromptBundle();
   const tools = listToolDefinitions();
+  const llmConfig = resolveXiaoqiLlmConfig();
   return {
     ok: true,
     agent: "Xiaoqi Agent",
@@ -172,6 +177,11 @@ export async function buildHealth(version: string): Promise<HealthResponse> {
     version,
     mode: "local-mock",
     providerCalls: "disabled",
+    directorChat: {
+      provider: llmConfig.provider,
+      model: llmConfig.model,
+      configured: llmConfig.provider === "deepseek" && Boolean(llmConfig.apiKey),
+    },
     bind: {
       host: XIAOQI_DEFAULT_HOST,
       port: XIAOQI_DEFAULT_PORT,
@@ -235,13 +245,32 @@ export function buildPlan(request: PlanRequest, state: XiaoqiRuntimeState): Plan
   });
 }
 
-export function buildChat(request: ChatRequest, state: XiaoqiRuntimeState): ChatResponse {
+export async function buildChat(request: ChatRequest, state: XiaoqiRuntimeState): Promise<ChatResponse> {
   const plan = buildPlan(request, state);
+  const directorChat = await runXiaoqiDirectorChat({ request, plan });
+  if (directorChat.ok && directorChat.content) {
+    return {
+      state: plan.state,
+      reply: directorChat.content,
+      plan,
+      directorChat: {
+        provider: directorChat.provider,
+        model: directorChat.model,
+        called: true,
+      },
+    };
+  }
+
   if (plan.missingQuestions.length) {
     return {
       state: "Clarify",
       reply: `我先把作品方向收束一下：${plan.missingQuestions[0]}`,
       plan,
+      directorChat: {
+        provider: directorChat.provider,
+        model: directorChat.model,
+        called: false,
+      },
     };
   }
 
@@ -250,6 +279,11 @@ export function buildChat(request: ChatRequest, state: XiaoqiRuntimeState): Chat
     reply:
       "我已形成首版作品规格和工具计划。真实生成、外部 CLI、扣 M豆或批量动作都需要 My Stand 后端确认后才会继续。",
     plan,
+    directorChat: {
+      provider: directorChat.provider,
+      model: directorChat.model,
+      called: false,
+    },
   };
 }
 

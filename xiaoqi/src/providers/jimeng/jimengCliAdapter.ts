@@ -21,8 +21,8 @@ export function planJimengCliInvocation(args: {
     ...createToolPlan(args.toolName),
     adapter: "jimeng-cli",
     commandPreview: [
-      "jimeng",
-      args.toolName === "image.generate" ? "image" : "video",
+      "dreamina",
+      args.toolName === "image.generate" ? "text2image" : "text2video",
       "--config",
       "<backend-supplied>",
       "--out",

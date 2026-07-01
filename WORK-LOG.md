@@ -1,5 +1,31 @@
 # Xiaoqi Agent Work Log
 
+## 2026-07-02 My Stand Director Chat Deployment
+
+Status: deployed on the My Stand server.
+
+Scope:
+
+- Added DeepSeek-backed director chat for `/chat` when `XIAOQI_LLM_PROVIDER=deepseek` and a server-side API key is configured.
+- Kept `/execute`, Jimeng/Dreamina, ffmpeg, billing, and artifact writes behind the existing confirmation and dry-run boundaries.
+- Added `directorChat` health metadata so My Stand can see whether director chat is configured.
+- Changed HTTP smoke to use a random local port by default so verification can run while `xiaoqi-agent.service` owns `127.0.0.1:8788`.
+- Updated the Jimeng adapter command preview to the actual Dreamina CLI command name.
+- Deployed `xiaoqi-agent.service` bound to `127.0.0.1:8788`.
+
+Verified:
+
+- `npm run verify`
+- `GET /health`
+- `POST /chat` with confirmed SourceBrief context
+
+Not touched:
+
+- No real `/execute` Provider call from Xiaoqi.
+- No real M-dou charge from Xiaoqi.
+- No My Stand SQLite, attachment, or file asset write from Xiaoqi.
+- No API key, cookie, token, or login state committed to Git.
+
 ## 2026-06-30 v0.4.1 Local Agent Repair
 
 Status: implemented locally for review.

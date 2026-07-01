@@ -6,7 +6,7 @@ import {
   XIAOQI_DEFAULT_PORT,
 } from "../xiaoqi/src/runtime/server.ts";
 
-const port = Number(process.env.XIAOQI_SMOKE_PORT ?? XIAOQI_DEFAULT_PORT);
+const port = Number(process.env.XIAOQI_SMOKE_PORT ?? 0);
 const host = process.env.XIAOQI_SMOKE_HOST ?? XIAOQI_DEFAULT_HOST;
 const server = createXiaoqiServer({ version: "0.4.2-smoke" });
 

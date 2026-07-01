@@ -26,6 +26,11 @@ export type HealthResponse = {
   version: string;
   mode: XiaoqiRuntimeMode;
   providerCalls: "disabled";
+  directorChat: {
+    provider: "mock" | "deepseek";
+    model: string;
+    configured: boolean;
+  };
   bind: {
     host: "127.0.0.1";
     port: 8788;
@@ -75,6 +80,7 @@ export type PlanRequest = {
   goal?: string;
   audience?: string;
   materials?: unknown[];
+  sourceContext?: unknown;
   constraints?: Record<string, unknown>;
 };
 
@@ -98,6 +104,11 @@ export type ChatResponse = {
   reply: string;
   state: XiaoqiStateName;
   plan?: PlanResponse;
+  directorChat?: {
+    provider: "mock" | "deepseek";
+    model: string;
+    called: boolean;
+  };
 };
 
 export type ExecuteRequest = {
