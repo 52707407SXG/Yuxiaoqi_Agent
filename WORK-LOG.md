@@ -1,5 +1,28 @@
 # Xiaoqi Agent Work Log
 
+## 2026-07-02 Creative Studio Material Guidance
+
+Status: deployed on the My Stand server.
+
+Scope:
+
+- Updated Xiaoqi kernel prompt and DeepSeek director chat system prompt for the My Stand Creative Studio handoff.
+- When materials or SourceBrief context exists, Xiaoqi should acknowledge the useful material points briefly, then ask what the user wants to make and clarify platform, audience, style, goal, and output standard.
+- When no material exists, Xiaoqi should keep the reply short and guide the user to the left-side material assistant/material box to upload files, paste links, or enter a search/organizing request.
+
+Verified:
+
+- `npm test`
+- `npm run build`
+- My Stand production guest `/api/creative-studio/chat` returns through `mystand-to-xiaoqi / deepseek-v4-pro` and mentions the left-side material box when no source is available.
+
+Not touched:
+
+- No real `/execute` Provider call from Xiaoqi.
+- No real M-dou charge from Xiaoqi.
+- No My Stand SQLite, attachment, or file asset write from Xiaoqi.
+- No API key, cookie, token, or login state committed to Git.
+
 ## 2026-07-02 My Stand Director Chat Deployment
 
 Status: deployed on the My Stand server.
