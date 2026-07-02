@@ -13,6 +13,8 @@ test("kernel and mode prompts load as Xiaoqi runtime prompts", async () => {
   assert.match(bundle.kernel, /Input Slots:/);
   assert.match(bundle.kernel, /Output Structure:/);
   assert.match(bundle.kernel, /Forbidden:/);
+  assert.match(bundle.kernel, /左侧的资料员\/资料框/);
+  assert.match(bundle.kernel, /不要假装已经读到资料/);
 
   for (const slug of modePromptSlugs) {
     assert.match(bundle.modes[slug], /目标/);
